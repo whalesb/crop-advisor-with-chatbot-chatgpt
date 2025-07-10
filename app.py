@@ -12,6 +12,31 @@ st.set_page_config(
     page_icon="🌾"
 )
 
+# --- CSS for Fixed Chat Input ---
+st.markdown("""
+<style>
+    /* Fix the chat input container to the bottom */
+    .stChatFloatingInputContainer {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80%;
+        max-width: 800px;
+        background: white;
+        z-index: 999;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    /* Add padding to the bottom of the page to prevent content from being hidden */
+    .main .block-container {
+        padding-bottom: 100px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- Data Loading and Model Training ---
 @st.cache_resource
 def load_data_and_train():
@@ -152,7 +177,7 @@ with st.expander("📊 Crop Requirement Table"):
     st.dataframe(pd.DataFrame(table), height=400, use_container_width=True)
 
 # --- Inline Vapi Chatbot ---
-with st.expander("💬 Ask AgroSenseBot"):
+with st.expander("💬 Ask AgroSenseBot", expanded=True):
     st.markdown("Ask me anything about crops, soil, or growing conditions.")
 
     try:
@@ -171,7 +196,7 @@ with st.expander("💬 Ask AgroSenseBot"):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    user_input = st.chat_input("Say something...")
+    user_input = st.chat_input("Ask about crops, soil, or growing conditions...")
     if user_input:
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
