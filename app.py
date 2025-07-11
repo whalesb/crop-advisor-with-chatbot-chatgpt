@@ -1,4 +1,4 @@
-# app.py - AgroSense-AI with Inline Vapi Chatbot (Persistent Sliders)
+# app.py - AgroSense-AI with Inline Vapi Chatbot (Fixed Slider Persistence)
 import streamlit as st
 import pandas as pd
 import requests
@@ -38,20 +38,13 @@ st.markdown("""
 @st.cache_resource
 def load_data_and_train():
     df = pd.read_csv("Crop_Recommendation.csv")
+
     df = df.rename(columns={
         "Nitrogen": "N",
         "Phosphorus": "P",
         "Potassium": "K",
         "pH_Value": "pH",
     })
-
-    # Compute global min/max for environmental sliders
-    global_env_ranges = {
-        "Temperature": (df["Temperature"].min(), df["Temperature"].max()),
-        "Humidity":    (df["Humidity"].min(),    df["Humidity"].max()),
-        "pH":          (df["pH"].min(),          df["pH"].max()),
-        "Soil_Moisture": (df["Soil_Moisture"].min(), df["Soil_Moisture"].max())
-    }
 
     le = LabelEncoder()
     df["Crop_encoded"] = le.fit_transform(df["Crop"])
@@ -62,8 +55,9 @@ def load_data_and_train():
 
     crop_stats = {}
     for crop in le.classes_:
-        subset = df[df["Crop_encoded"] == le.transform([crop])[0]]
-        crop_stats[crop] = {
+        code = le.transform([crop])[0]
+        subset = df[df["Crop_encoded"] == code]
+        stats = {
             "N_avg": subset["N"].mean(),
             "P_avg": subset["P"].mean(),
             "K_avg": subset["K"].mean(),
@@ -71,30 +65,32 @@ def load_data_and_train():
             "P_range": (subset["P"].min(), subset["P"].max()),
             "K_range": (subset["K"].min(), subset["K"].max()),
             "Temperature": (subset["Temperature"].min(), subset["Temperature"].max()),
-            "Humidity":    (subset["Humidity"].min(),    subset["Humidity"].max()),
-            "pH":          (subset["pH"].min(),          subset["pH"].max()),
+            "Humidity": (subset["Humidity"].min(), subset["Humidity"].max()),
+            "pH": (subset["pH"].min(), subset["pH"].max()),
             "Soil_Moisture": (subset["Soil_Moisture"].min(), subset["Soil_Moisture"].max())
         }
+        crop_stats[crop] = stats
+
+    global_env_ranges = {
+        "Temperature": (df["Temperature"].min(), df["Temperature"].max()),
+        "Humidity": (df["Humidity"].min(), df["Humidity"].max()),
+        "pH": (df["pH"].min(), df["pH"].max()),
+        "Soil_Moisture": (df["Soil_Moisture"].min(), df["Soil_Moisture"].max())
+    }
 
     return model, le, crop_stats, global_env_ranges
 
 model, le, crop_stats, global_env_ranges = load_data_and_train()
 all_crops = sorted(le.classes_)
 
-# --- Initialize persistent sliders in session_state ---
-# (Only on first run; afterwards Streamlit will remember user adjustments)
-if "temp" not in st.session_state:
-    lo, hi = global_env_ranges["Temperature"]
-    st.session_state.temp = (lo + hi) / 2
-if "humidity" not in st.session_state:
-    lo, hi = global_env_ranges["Humidity"]
-    st.session_state.humidity = (lo + hi) / 2
-if "ph" not in st.session_state:
-    lo, hi = global_env_ranges["pH"]
-    st.session_state.ph = (lo + hi) / 2
-if "soil_moisture" not in st.session_state:
-    lo, hi = global_env_ranges["Soil_Moisture"]
-    st.session_state.soil_moisture = (lo + hi) / 2
+# --- Initialize Session State ---
+if 'env_values' not in st.session_state:
+    st.session_state.env_values = {
+        "temp": float(sum(global_env_ranges["Temperature"]) / 2),
+        "humidity": float(sum(global_env_ranges["Humidity"]) / 2),
+        "ph": float(sum(global_env_ranges["pH"]) / 2),
+        "soil_moisture": float(sum(global_env_ranges["Soil_Moisture"]) / 2)
+    }
 
 # --- Main UI ---
 st.title("🌾 AgroSense-AI: The Smart Crop Compatibility Engine")
@@ -108,67 +104,63 @@ with st.sidebar:
     selected_crop = st.selectbox("Choose your crop", all_crops)
 
     st.header("🧪 Soil Nutrients (ppm)")
-    n_value = st.slider(
-        "Nitrogen (N)", 0, 300,
-        int(round(crop_stats[selected_crop]["N_avg"])),
-        step=1, key="n_value"
-    )
-    p_value = st.slider(
-        "Phosphorus (P)", 0, 300,
-        int(round(crop_stats[selected_crop]["P_avg"])),
-        step=1, key="p_value"
-    )
-    k_value = st.slider(
-        "Potassium (K)", 0, 300,
-        int(round(crop_stats[selected_crop]["K_avg"])),
-        step=1, key="k_value"
-    )
+    n_value = st.slider("Nitrogen (N)", 0, 300, int(round(crop_stats[selected_crop]["N_avg"])), step=1)
+    p_value = st.slider("Phosphorus (P)", 0, 300, int(round(crop_stats[selected_crop]["P_avg"])), step=1)
+    k_value = st.slider("Potassium (K)", 0, 300, int(round(crop_stats[selected_crop]["K_avg"])), step=1)
 
     st.header("🌦️ Environmental Factors")
-    temp = st.slider(
-        "Temperature (°C)",
-        global_env_ranges["Temperature"][0],
-        global_env_ranges["Temperature"][1],
-        st.session_state.temp,
-        step=0.1, key="temp"
-    )
-    humidity = st.slider(
-        "Humidity (%)",
-        global_env_ranges["Humidity"][0],
-        global_env_ranges["Humidity"][1],
-        st.session_state.humidity,
-        step=0.1, key="humidity"
-    )
-    ph = st.slider(
-        "Soil pH Level",
-        global_env_ranges["pH"][0],
-        global_env_ranges["pH"][1],
-        st.session_state.ph,
-        step=0.1, key="ph"
-    )
-    soil_moisture = st.slider(
-        "Soil Moisture (%)",
-        global_env_ranges["Soil_Moisture"][0],
-        global_env_ranges["Soil_Moisture"][1],
-        st.session_state.soil_moisture,
-        step=0.1, key="soil_moisture"
-    )
+    # Use session state to preserve slider values
+    temp = st.slider("Temperature (°C)",
+                     global_env_ranges["Temperature"][0],
+                     global_env_ranges["Temperature"][1],
+                     st.session_state.env_values["temp"],
+                     step=0.1,
+                     key="temp_slider",
+                     on_change=lambda: st.session_state.env_values.update({"temp": st.session_state.temp_slider}))
+    
+    humidity = st.slider("Humidity (%)",
+                         global_env_ranges["Humidity"][0],
+                         global_env_ranges["Humidity"][1],
+                         st.session_state.env_values["humidity"],
+                         step=0.1,
+                         key="humidity_slider",
+                         on_change=lambda: st.session_state.env_values.update({"humidity": st.session_state.humidity_slider}))
+    
+    ph = st.slider("Soil pH Level",
+                   global_env_ranges["pH"][0],
+                   global_env_ranges["pH"][1],
+                   st.session_state.env_values["ph"],
+                   step=0.1,
+                   key="ph_slider",
+                   on_change=lambda: st.session_state.env_values.update({"ph": st.session_state.ph_slider}))
+    
+    soil_moisture = st.slider("Soil Moisture (%)",
+                              global_env_ranges["Soil_Moisture"][0],
+                              global_env_ranges["Soil_Moisture"][1],
+                              st.session_state.env_values["soil_moisture"],
+                              step=0.1,
+                              key="soil_moisture_slider",
+                              on_change=lambda: st.session_state.env_values.update({"soil_moisture": st.session_state.soil_moisture_slider}))
 
-# --- Analysis (unchanged) ---
+# --- Analysis ---
 if st.button("🧑‍🌾 Analyze Growing Conditions"):
     st.header("🔍 Analysis Results")
     analysis_data = {
-        "N": n_value, "P": p_value, "K": k_value,
-        "Temperature": temp, "Humidity": humidity,
-        "pH": ph, "Soil_Moisture": soil_moisture
+        "N": n_value,
+        "P": p_value,
+        "K": k_value,
+        "Temperature": st.session_state.env_values["temp"],
+        "Humidity": st.session_state.env_values["humidity"],
+        "pH": st.session_state.env_values["ph"],
+        "Soil_Moisture": st.session_state.env_values["soil_moisture"]
     }
 
     req = crop_stats[selected_crop]
     violations = []
-    for param, val in analysis_data.items():
-        low, high = req[f"{param}_range"] if param in ["N","P","K"] else req[param]
-        if not (low <= val <= high):
-            violations.append(f"{param}: {val} (requires {low}-{high})")
+    for param in analysis_data:
+        low, high = req[f"{param}_range"] if param in ["N", "P", "K"] else req[param]
+        if not (low <= analysis_data[param] <= high):
+            violations.append(f"{param}: {analysis_data[param]} (requires {low}-{high})")
 
     if not violations:
         st.success(f"✅ Excellent conditions for {selected_crop}!")
@@ -180,29 +172,28 @@ if st.button("🧑‍🌾 Analyze Growing Conditions"):
         st.warning("Consider adjusting inputs or choosing another crop.")
 
     st.subheader("🌱 Alternative Suitable Crops")
-    suitable = [
-        crop for crop in all_crops
-        if all(
-            (crop_stats[crop][f"{p}_range"][0] <= analysis_data[p] <= crop_stats[crop][f"{p}_range"][1])
-            if p in ["N","P","K"]
-            else (crop_stats[crop][p][0] <= analysis_data[p] <= crop_stats[crop][p][1])
-            for p in analysis_data
-        )
-    ]
+    suitable = []
+    for crop in all_crops:
+        stats = crop_stats[crop]
+        if all((stats[f"{p}_range"][0] <= analysis_data[p] <= stats[f"{p}_range"][1] if p in ["N", "P", "K"]
+                else stats[p][0] <= analysis_data[p] <= stats[p][1]) for p in analysis_data):
+            suitable.append(crop)
 
     if suitable:
         cols = st.columns(len(suitable))
         for col, crop in zip(cols, suitable):
             with col:
-                stats = crop_stats[crop]
-                st.metric(crop, f"N–P–K: {stats['N_avg']:.0f}-{stats['P_avg']:.0f}-{stats['K_avg']:.0f}")
+                s = crop_stats[crop]
+                st.metric(crop, f"N–P–K: {s['N_avg']:.0f}-{s['P_avg']:.0f}-{s['K_avg']:.0f}")
     else:
         st.warning("No other crops perfectly match these conditions.")
 
-# --- Requirement Table (unchanged) ---
+# --- Requirement Table ---
 with st.expander("📊 Crop Requirement Table"):
-    df_table = pd.DataFrame([
-        {
+    table = []
+    for c in all_crops:
+        s = crop_stats[c]
+        table.append({
             "Crop": c,
             "N Range": f"{s['N_range'][0]:.1f}-{s['N_range'][1]:.1f}",
             "P Range": f"{s['P_range'][0]:.1f}-{s['P_range'][1]:.1f}",
@@ -211,14 +202,13 @@ with st.expander("📊 Crop Requirement Table"):
             "Humidity (%)": f"{s['Humidity'][0]:.1f}-{s['Humidity'][1]:.1f}",
             "pH": f"{s['pH'][0]:.1f}-{s['pH'][1]:.1f}",
             "Moisture (%)": f"{s['Soil_Moisture'][0]:.1f}-{s['Soil_Moisture'][1]:.1f}"
-        }
-        for c,s in crop_stats.items()
-    ])
-    st.dataframe(df_table, height=400, use_container_width=True)
+        })
+    st.dataframe(pd.DataFrame(table), height=400, use_container_width=True)
 
-# --- Inline Vapi Chatbot (unchanged) ---
+# --- Inline Vapi Chatbot ---
 with st.expander("💬 Ask AgroSenseBot", expanded=True):
     st.markdown("Ask me anything about crops, soil, or growing conditions.")
+
     try:
         VAPI_PRIVATE_KEY = st.secrets["VAPI_PRIVATE_KEY"]
         ASSISTANT_ID = st.secrets["ASSISTANT_ID"]
@@ -228,6 +218,7 @@ with st.expander("💬 Ask AgroSenseBot", expanded=True):
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "chat_id" not in st.session_state:
         st.session_state.chat_id = None
 
     for msg in st.session_state.messages:
@@ -236,13 +227,16 @@ with st.expander("💬 Ask AgroSenseBot", expanded=True):
 
     user_input = st.chat_input("Ask about crops, soil, or growing conditions...")
     if user_input:
-        st.session_state.messages.append({"role":"user","content":user_input})
+        st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        payload = {"assistantId":ASSISTANT_ID,"input":user_input}
+        payload = {
+            "assistantId": ASSISTANT_ID,
+            "input": user_input
+        }
         if st.session_state.chat_id:
-            payload["previousChatId"]=st.session_state.chat_id
+            payload["previousChatId"] = st.session_state.chat_id
 
         resp = requests.post(
             "https://api.vapi.ai/chat",
@@ -252,10 +246,14 @@ with st.expander("💬 Ask AgroSenseBot", expanded=True):
                 "Content-Type": "application/json"
             }
         )
-        bot_reply = (resp.json().get("output", [{}])[-1].get("content")
-                     if resp.ok else f"Error {resp.status_code}: {resp.text}")
 
-        st.session_state.chat_id = resp.json().get("id", st.session_state.chat_id)
-        st.session_state.messages.append({"role":"assistant","content":bot_reply})
+        if resp.ok:
+            data = resp.json()
+            st.session_state.chat_id = data.get("id", st.session_state.chat_id)
+            bot_reply = data.get("output", [{}])[-1].get("content", "(No response)")
+        else:
+            bot_reply = f"Error {resp.status_code}: {resp.text}"
+
+        st.session_state.messages.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
             st.markdown(bot_reply)
