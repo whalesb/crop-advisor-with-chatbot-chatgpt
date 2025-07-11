@@ -15,7 +15,6 @@ st.set_page_config(
 # --- CSS for Fixed Chat Input ---
 st.markdown("""
 <style>
-    /* Fix the chat input container to the bottom */
     .stChatFloatingInputContainer {
         position: fixed;
         bottom: 20px;
@@ -29,8 +28,6 @@ st.markdown("""
         border-radius: 10px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
-    
-    /* Add padding to the bottom of the page to prevent content from being hidden */
     .main .block-container {
         padding-bottom: 100px;
     }
@@ -74,9 +71,16 @@ def load_data_and_train():
         }
         crop_stats[crop] = stats
 
-    return model, le, crop_stats
+    global_env_ranges = {
+        "Temperature": (df["Temperature"].min(), df["Temperature"].max()),
+        "Humidity": (df["Humidity"].min(), df["Humidity"].max()),
+        "pH": (df["pH"].min(), df["pH"].max()),
+        "Soil_Moisture": (df["Soil_Moisture"].min(), df["Soil_Moisture"].max())
+    }
 
-model, le, crop_stats = load_data_and_train()
+    return model, le, crop_stats, global_env_ranges
+
+model, le, crop_stats, global_env_ranges = load_data_and_train()
 all_crops = sorted(le.classes_)
 
 # --- Main UI ---
@@ -97,21 +101,21 @@ with st.sidebar:
 
     st.header("🌦️ Environmental Factors")
     temp = st.slider("Temperature (°C)",
-                     float(crop_stats[selected_crop]["Temperature"][0]),
-                     float(crop_stats[selected_crop]["Temperature"][1]),
-                     float(sum(crop_stats[selected_crop]["Temperature"]) / 2), step=0.1)
+                     global_env_ranges["Temperature"][0],
+                     global_env_ranges["Temperature"][1],
+                     float(sum(global_env_ranges["Temperature"]) / 2), step=0.1)
     humidity = st.slider("Humidity (%)",
-                         float(crop_stats[selected_crop]["Humidity"][0]),
-                         float(crop_stats[selected_crop]["Humidity"][1]),
-                         float(sum(crop_stats[selected_crop]["Humidity"]) / 2), step=0.1)
+                         global_env_ranges["Humidity"][0],
+                         global_env_ranges["Humidity"][1],
+                         float(sum(global_env_ranges["Humidity"]) / 2), step=0.1)
     ph = st.slider("Soil pH Level",
-                   float(crop_stats[selected_crop]["pH"][0]),
-                   float(crop_stats[selected_crop]["pH"][1]),
-                   float(sum(crop_stats[selected_crop]["pH"]) / 2), step=0.1)
+                   global_env_ranges["pH"][0],
+                   global_env_ranges["pH"][1],
+                   float(sum(global_env_ranges["pH"]) / 2), step=0.1)
     soil_moisture = st.slider("Soil Moisture (%)",
-                              float(crop_stats[selected_crop]["Soil_Moisture"][0]),
-                              float(crop_stats[selected_crop]["Soil_Moisture"][1]),
-                              float(sum(crop_stats[selected_crop]["Soil_Moisture"]) / 2), step=0.1)
+                              global_env_ranges["Soil_Moisture"][0],
+                              global_env_ranges["Soil_Moisture"][1],
+                              float(sum(global_env_ranges["Soil_Moisture"]) / 2), step=0.1)
 
 # --- Analysis ---
 if st.button("🧑‍🌾 Analyze Growing Conditions"):
