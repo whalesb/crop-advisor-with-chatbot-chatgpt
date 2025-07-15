@@ -2,7 +2,7 @@
 
 # 🌱 AgroSense-AI: The Crop Compatibility Engine
 
-AgroSense-AI is an intelligent crop recommendation and yield prediction system designed to assist farmers, agricultural advisors, and researchers in making data-driven decisions. It evaluates environmental conditions and soil nutrients to recommend the most compatible crops and estimate potential yield — maximizing productivity while minimizing waste.
+AgroSense-AI is an intelligent crop recommendation and yield prediction system designed to assist farmers, agricultural advisors, and researchers in making data-driven decisions. It evaluates environmental conditions and soil nutrients to recommend the most compatible crops and estimate potential yield, maximizing productivity while minimizing waste.
 
 ## 📌 Problem Statement
 
